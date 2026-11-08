@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     automation_max_pages: int = 12
     automation_max_sessions: int = 3
 
-    # Job fetching
+    # Job fetching. ALLOW_PRIVATE_URLS=true permits localhost/private hosts (local testing only).
+    allow_private_urls: bool = False
     http_user_agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/130.0 Safari/537.36 ApplyPilot/1.0"

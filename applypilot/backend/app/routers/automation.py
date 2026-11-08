@@ -68,8 +68,8 @@ async def continue_application(app_id: int, user: User = Depends(get_current_use
     s = _session(app_id, user)
     if s.state not in ("paused", "error"):
         raise HTTPException(409, "Automation is not waiting for you right now")
-    s.state = "running"  # optimistic, so the UI reflects the action immediately
     asyncio.create_task(_bg(s.resume))
+    await asyncio.sleep(0.1)  # let resume() take the lock and flip the state to running
     return s.to_dict()
 
 
@@ -108,15 +108,15 @@ async def remote_input(app_id: int, body: InputIn, user: User = Depends(get_curr
     s = _session(app_id, user)
     try:
         if body.action == "click" and body.x is not None and body.y is not None:
-            await s.remote_click(body.x, body.y)
+            await s.remote("click", x=body.x, y=body.y)
         elif body.action == "type" and body.text:
-            await s.remote_type(body.text)
+            await s.remote("type", text=body.text)
         elif body.action == "key" and body.key:
-            await s.remote_key(body.key)
+            await s.remote("key", key=body.key)
         elif body.action == "scroll":
-            await s.remote_scroll(body.dy or 400)
+            await s.remote("scroll", dy=body.dy or 400)
         elif body.action == "back":
-            await s.remote_back()
+            await s.remote("back")
         else:
             raise HTTPException(400, "Invalid input")
     except AutomationError as exc:

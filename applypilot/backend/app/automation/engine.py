@@ -95,6 +95,7 @@ class AutomationSession:
         self.page_no = 0
         self.error = ""
         self.lock = asyncio.Lock()
+        self.input_lock = asyncio.Lock()  # remote inputs are applied strictly one at a time, in order
         self.last_activity = time.monotonic()
         self.tmpdir = Path(tempfile.mkdtemp(prefix="applypilot-"))
         self.resume_path: Path | None = None
@@ -108,6 +109,7 @@ class AutomationSession:
         self.page: Page | None = None
         self._task: asyncio.Task | None = None
         self._submit_clicked = False
+        self._seen_pages: list[tuple] = []
 
     # ----------------------------------------------------------- utilities
     def note(self, msg: str, kind: str = "info", persist: bool = False) -> None:
@@ -462,9 +464,12 @@ class AutomationSession:
                 return
             signature = (self.page.url, tuple(sorted(f.display_label for f in fields)))
             if signature != last_signature:
-                self.page_no += 1
                 last_signature = signature
                 same_page_guard = 0
+                if any(f.category not in ("unknown",) for f in fields):
+                    if signature not in self._seen_pages:
+                        self._seen_pages.append(signature)
+                    self.page_no = self._seen_pages.index(signature) + 1
             else:
                 same_page_guard += 1
             form_fields = [f for f in fields if f.category not in ("unknown",)]
@@ -555,6 +560,7 @@ class AutomationSession:
             self.touch()
             if self.state not in ("paused", "error"):
                 raise AutomationError("Automation is not waiting for you right now.")
+            self.state = "running"
             try:
                 if self.checkpoint and self.checkpoint.kind == "post_submit":
                     await self._capture_confirmation(after_human=True)
@@ -648,27 +654,34 @@ class AutomationSession:
         self.touch()
         return self.page
 
-    async def remote_click(self, x: float, y: float) -> None:
+    async def _remote_click(self, x: float, y: float) -> None:
         page = self._require_interactive()
         await page.mouse.click(max(0, min(1, x)) * VIEWPORT["width"], max(0, min(1, y)) * VIEWPORT["height"])
 
-    async def remote_type(self, text: str) -> None:
+    async def _remote_type(self, text: str) -> None:
         page = self._require_interactive()
         await page.keyboard.type(text[:500], delay=15)  # deliberately not logged (may be OTP/password)
 
-    async def remote_key(self, key: str) -> None:
+    async def _remote_key(self, key: str) -> None:
         if key not in ALLOWED_KEYS:
             raise AutomationError("Key not allowed")
         page = self._require_interactive()
         await page.keyboard.press(" " if key == "Space" else key)
 
-    async def remote_scroll(self, dy: int) -> None:
+    async def _remote_scroll(self, dy: int) -> None:
         page = self._require_interactive()
         await page.mouse.wheel(0, max(-3000, min(3000, dy)))
 
-    async def remote_back(self) -> None:
+    async def _remote_back(self) -> None:
         page = self._require_interactive()
         await page.go_back()
+
+
+    async def remote(self, action: str, **kw) -> None:
+        fn = {"click": self._remote_click, "type": self._remote_type, "key": self._remote_key,
+              "scroll": self._remote_scroll, "back": self._remote_back}[action]
+        async with self.input_lock:
+            await fn(**kw)
 
 
 class SessionManager:
@@ -684,11 +697,15 @@ class SessionManager:
 
     async def start(self, application_id: int, user_id: int, headless: bool | None = None) -> AutomationSession:
         existing = self.sessions.get(application_id)
-        if existing and existing.state != "closed":
+        if existing and existing.state not in ("closed", "submitted"):
             if existing.user_id != user_id:
                 raise AutomationError("Not allowed")
             return existing
-        active = [s for s in self.sessions.values() if s.state not in ("closed",)]
+        # Finished sessions don't count towards the limit; close them to free their browsers.
+        for app_id, sess in list(self.sessions.items()):
+            if sess.state == "submitted":
+                await self.stop(app_id)
+        active = [s for s in self.sessions.values() if s.state in ("starting", "running", "paused", "error")]
         if len(active) >= get_settings().automation_max_sessions:
             raise AutomationError("Too many active browser sessions. Close another application session first.")
         session = AutomationSession(application_id, user_id, headless)
@@ -719,7 +736,8 @@ class SessionManager:
             await asyncio.sleep(60)
             now = time.monotonic()
             for app_id, s in list(self.sessions.items()):
-                if s.state != "running" and now - s.last_activity > self.IDLE_SECONDS:
+                idle = now - s.last_activity
+                if (s.state == "submitted" and idle > 300) or (s.state != "running" and idle > self.IDLE_SECONDS):
                     await self.stop(app_id)
 
     async def shutdown(self) -> None:

@@ -82,7 +82,7 @@ def assert_public_url(url: str) -> None:
     p = urlparse(url)
     if p.scheme not in ("http", "https") or not p.hostname:
         raise JobFetchError("Please provide a valid http(s) job URL.")
-    if s.environment == "test":
+    if s.environment == "test" or s.allow_private_urls:
         return
     try:
         infos = socket.getaddrinfo(p.hostname, None)

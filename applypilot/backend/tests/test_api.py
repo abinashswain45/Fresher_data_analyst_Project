@@ -161,3 +161,30 @@ def test_export_and_delete(client, auth):
     assert client.post("/api/account/delete", headers=h, json={"password": "nope-nope"}).status_code == 403
     assert client.post("/api/account/delete", headers=h, json={"password": "password-123"}).status_code == 204
     assert client.get("/api/profile", headers=h).status_code == 401
+
+
+def test_continue_endpoint_resumes_session(client, auth, portal_url):
+    """Regression: POST /continue must actually resume a paused session (not just flip its state)."""
+    r = client.post("/api/applications/analyze", headers=auth, json={"url": f"{portal_url}/captcha.html", "force": True})
+    app_id = r.json()["id"]
+    _wait_status(client, auth, app_id)
+    resume_id = client.get("/api/resumes", headers=auth).json()[0]["id"]
+    client.post(f"/api/applications/{app_id}/approve-resume?resume_id={resume_id}", headers=auth)
+    assert client.post(f"/api/automation/{app_id}/start", headers=auth, json={}).status_code == 200
+    end = time.time() + 60
+    while time.time() < end and client.get(f"/api/automation/{app_id}/state", headers=auth).json()["state"] != "paused":
+        time.sleep(0.5)
+    st = client.get(f"/api/automation/{app_id}/state", headers=auth).json()
+    assert st["checkpoint"]["kind"] == "captcha"
+    n_before = len(st["log"])
+    assert client.post(f"/api/automation/{app_id}/continue", headers=auth).status_code == 200
+    end = time.time() + 30
+    while time.time() < end:
+        st = client.get(f"/api/automation/{app_id}/state", headers=auth).json()
+        if st["state"] == "paused" and len(st["log"]) > n_before:
+            break
+        time.sleep(0.5)
+    # the engine re-ran detection and paused again because the CAPTCHA is still there
+    assert st["state"] == "paused" and st["checkpoint"]["kind"] == "captcha" and len(st["log"]) > n_before
+    assert client.post(f"/api/automation/{app_id}/approve-submit", headers=auth).status_code == 409
+    client.post(f"/api/automation/{app_id}/stop", headers=auth)

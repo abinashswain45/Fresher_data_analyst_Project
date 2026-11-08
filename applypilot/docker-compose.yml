@@ -1,0 +1,35 @@
+# Local full stack: PostgreSQL + API + web.  Usage: docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: applypilot
+      POSTGRES_PASSWORD: applypilot
+      POSTGRES_DB: applypilot
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U applypilot"]
+      interval: 5s
+      retries: 10
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://applypilot:applypilot@db:5432/applypilot
+      CORS_ORIGINS: http://localhost:3000
+    volumes: [storage:/data/storage]
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+  web:
+    image: node:22-alpine
+    working_dir: /web
+    command: sh -c "npm ci && npm run build && npm start"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes: ["./frontend:/web"]
+    ports: ["3000:3000"]
+    depends_on: [api]
+volumes:
+  pgdata:
+  storage:
