@@ -1,0 +1,17 @@
+# secrets & local data (never commit personal information)
+.env
+.env.*
+!.env.example
+*.db
+storage/
+backend/storage/
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+.next/
+out/
+*.log
+.vercel
+*.tsbuildinfo
