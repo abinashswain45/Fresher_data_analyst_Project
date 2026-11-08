@@ -1,0 +1,31 @@
+<!doctype html><html><head><title>Application - Data Analyst</title>
+<style>.step{display:none}.step.active{display:block}</style></head><body>
+<h1>Apply: Data Analyst</h1>
+<form id="app" onsubmit="event.preventDefault()">
+<div class="step active" id="s1">
+  <label for="fn">First Name *</label><input id="fn" name="first_name" required>
+  <label for="ln">Last Name *</label><input id="ln" name="last_name" required>
+  <label for="em">Email *</label><input id="em" type="email" name="email" required>
+  <label for="ph">Phone *</label><input id="ph" name="phone" required>
+  <label for="li">LinkedIn Profile</label><input id="li" name="linkedin">
+  <label for="cv">Resume/CV *</label><input id="cv" type="file" name="resume" required>
+  <label for="deg">Highest Degree</label><select id="deg" name="degree"><option>Select...</option><option>High School</option><option>Bachelor of Science</option><option>Master of Science</option></select>
+  <label for="why">Why do you want to join Acme Analytics? *</label><textarea id="why" name="why" required></textarea>
+  <label for="gen">Gender (voluntary)</label><select id="gen" name="gender"><option>Select...</option><option>Female</option><option>Male</option><option>Prefer not to say</option></select>
+  <label><input type="checkbox" id="terms" name="terms" required> I agree to the terms and privacy policy</label>
+  <div id="err1" role="alert"></div>
+  <button type="button" onclick="next()">Next</button>
+</div>
+<div class="step" id="s2">
+  <label for="sql">Describe your experience with SQL and Python *</label><textarea id="sql" name="sql" required></textarea>
+  <div id="err2" role="alert"></div>
+  <button type="button" onclick="submitApp()">Submit application</button>
+</div>
+</form>
+<script>
+function missing(ids){return ids.filter(i=>{const e=document.getElementById(i);return e.type==='checkbox'?!e.checked:(e.type==='file'?e.files.length===0:!e.value.trim())});}
+function next(){const m=missing(['fn','ln','em','ph','cv','why','terms']);if(m.length){document.getElementById('err1').textContent='Please complete: '+m.join(', ');return;}
+document.getElementById('s1').classList.remove('active');document.getElementById('s2').classList.add('active');}
+function submitApp(){if(missing(['sql']).length){document.getElementById('err2').textContent='Required';return;}
+window.__submitted=true;location.href='thanks.html';}
+</script></body></html>

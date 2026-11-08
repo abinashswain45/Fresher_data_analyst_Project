@@ -1,0 +1,8 @@
+<!doctype html><html><head><title>Sign in - Acme Careers</title></head><body>
+<h1>Sign in to Acme Careers</h1>
+<form id="f" onsubmit="event.preventDefault(); if(document.getElementById('pw').value.length>=6){location.href='form.html'} else {document.getElementById('err').textContent='Password required'}">
+<label for="em">Email</label><input id="em" type="email" name="email" required>
+<label for="pw">Password</label><input id="pw" type="password" name="password" required>
+<div id="err" role="alert"></div>
+<button type="submit">Sign in</button>
+</form></body></html>
