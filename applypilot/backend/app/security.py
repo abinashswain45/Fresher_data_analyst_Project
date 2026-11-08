@@ -65,8 +65,12 @@ def _fernet() -> Fernet:
     key = s.encryption_key
     if not key:
         # Development fallback: derive a key from the JWT secret. Production must set ENCRYPTION_KEY.
-        key = base64.urlsafe_b64encode(hashlib.sha256(s.jwt_secret.encode()).digest()).decode()
-    return Fernet(key.encode())
+        key = s.jwt_secret
+    try:
+        return Fernet(key.encode())
+    except ValueError:
+        # Not a Fernet key (e.g. a platform-generated random secret): derive one deterministically.
+        return Fernet(base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest()))
 
 
 def encrypt_bytes(data: bytes) -> bytes:

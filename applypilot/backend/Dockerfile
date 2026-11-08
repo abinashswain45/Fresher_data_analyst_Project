@@ -1,11 +1,13 @@
-# Includes Chromium + all system deps for Playwright.
-FROM mcr.microsoft.com/playwright/python:v1.64.0-noble
+FROM python:3.12-slim
 WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && playwright install chromium
+# Python deps + Chromium and its system libraries for Playwright
+RUN pip install --no-cache-dir -r requirements.txt \
+ && playwright install --with-deps chromium \
+ && rm -rf /var/lib/apt/lists/*
 COPY app ./app
-RUN useradd -m applypilot && mkdir -p /data/storage && chown -R applypilot /data /app
+RUN useradd -m applypilot && mkdir -p /data/storage && chown -R applypilot /data /app /ms-playwright
 USER applypilot
 ENV STORAGE_DIR=/data/storage
 EXPOSE 8000

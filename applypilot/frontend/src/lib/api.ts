@@ -1,6 +1,7 @@
 // Typed client for the ApplyPilot FastAPI backend.
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+// Empty = same origin: the Next.js server proxies /api/* to the backend (BACKEND_URL, see next.config.mjs).
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 const TOKEN_KEY = "applypilot_token";
 
 export class ApiError extends Error {

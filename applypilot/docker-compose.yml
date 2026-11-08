@@ -26,7 +26,7 @@ services:
     working_dir: /web
     command: sh -c "npm ci && npm run build && npm start"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      BACKEND_URL: http://api:8000
     volumes: ["./frontend:/web"]
     ports: ["3000:3000"]
     depends_on: [api]

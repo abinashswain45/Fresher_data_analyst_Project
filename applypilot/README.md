@@ -63,7 +63,7 @@ uvicorn app.main:app --reload --port 8000               # API docs: http://local
 
 # Frontend (new terminal)
 cd applypilot/frontend
-cp .env.example .env.local                              # NEXT_PUBLIC_API_URL=http://localhost:8000
+cp .env.example .env.local                              # BACKEND_URL=http://localhost:8000
 npm install
 npm run dev                                             # http://localhost:3000
 ```
@@ -92,17 +92,27 @@ Backend (`backend/.env`, all documented in `backend/.env.example`):
 | `AUTOMATION_TIMEOUT_MS` / `AUTOMATION_MAX_PAGES` / `AUTOMATION_MAX_SESSIONS` | | Engine limits |
 | `ALLOW_PRIVATE_URLS` | | `true` only for local testing against localhost portals |
 
-Frontend: `NEXT_PUBLIC_API_URL`, the public URL of the backend (inlined at build time).
+Frontend: `BACKEND_URL`, where the Next.js server proxies `/api/*` (default `http://localhost:8000`). Optional `NEXT_PUBLIC_API_URL` makes the browser call the API directly instead.
 
 ## Deployment
 
-1. **Database**: create a managed PostgreSQL (Neon, Supabase, Render, RDS). Tables are created automatically on first start.
-2. **Backend**: deploy `backend/Dockerfile` to a container host that supports long-lived processes and enough memory for Chromium (≥1 GB): Render, Railway, Fly.io, Google Cloud Run (min instances = 1, session affinity on) or a small VM.
-   - Run **one** instance with one worker: automation browser sessions live in-process.
-   - Attach a persistent private volume at `/data/storage` (or set `STORAGE_DIR`).
-   - Set the env vars above with `ENVIRONMENT=production`. Serve over HTTPS (all of these hosts provide TLS).
-3. **Frontend**: import `applypilot/frontend` into **Vercel** (root directory `applypilot/frontend`), set `NEXT_PUBLIC_API_URL=https://<your-api-host>`, deploy. Add the Vercel URL to the backend's `CORS_ORIGINS`.
-4. Visit the site, create your account, upload your CV.
+### One-click on Render (works from a phone)
+
+`render.yaml` at the repository root is a Render Blueprint that creates everything: PostgreSQL, the API (Docker, with Chromium) with a private disk, and the website. Secrets (`JWT_SECRET`, `ENCRYPTION_KEY`) are generated automatically.
+
+1. Sign in at https://dashboard.render.com with GitHub and allow access to this repository.
+2. **New → Blueprint** → choose this repository and the branch containing `render.yaml` → **Apply**.
+3. When asked for `ANTHROPIC_API_KEY`, paste your Claude API key (or leave it blank for heuristic mode).
+4. Wait for all three resources to turn "Live" (first build takes ~10 minutes), then open the `applypilot` web service URL.
+
+Approximate cost: API on Standard (2 GB RAM, needed by the automation browser) about $25/month, database about $6/month, website free. Render shows exact prices before you apply.
+
+The website forwards `/api/*` to the API over Render's private network (`BACKEND_URL`), so there is a single public URL and no CORS setup.
+
+### Other hosts
+
+- **Backend**: any container host with ≥2 GB RAM and a persistent volume (Railway, Fly.io, Cloud Run with min-instances 1, a VM). Run **one** instance/worker (browser sessions are in-process), mount storage at `/data/storage`, set the env vars above with `ENVIRONMENT=production`, serve over HTTPS.
+- **Frontend**: Vercel or any Node host, root `applypilot/frontend`, env `BACKEND_URL=https://<api-host>`. Alternatively set `NEXT_PUBLIC_API_URL` to call the API directly, and add the site to the API's `CORS_ORIGINS`.
 
 ## Testing
 

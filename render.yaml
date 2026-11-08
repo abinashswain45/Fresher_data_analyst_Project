@@ -1,0 +1,54 @@
+# Render Blueprint for ApplyPilot AI: one click creates the database, API and website.
+# Render dashboard -> New -> Blueprint -> pick this repository/branch -> Apply.
+databases:
+  - name: applypilot-db
+    plan: basic-256mb          # ~$6/month (free plan expires after 30 days)
+    databaseName: applypilot
+    user: applypilot
+
+services:
+  - type: web
+    name: applypilot-api
+    runtime: docker
+    rootDir: applypilot/backend
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    plan: standard             # 2 GB RAM, needed by the automation browser (~1 GB peak)
+    healthCheckPath: /api/health
+    disk:                      # private encrypted CV / screenshot storage
+      name: applypilot-storage
+      mountPath: /data/storage
+      sizeGB: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: applypilot-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: STORAGE_DIR
+        value: /data/storage
+      - key: AUTOMATION_HEADLESS
+        value: "true"
+      - key: ANTHROPIC_API_KEY  # optional; you'll be asked for it (leave blank for heuristic mode)
+        sync: false
+
+  - type: web
+    name: applypilot
+    runtime: node
+    rootDir: applypilot/frontend
+    plan: free                 # the website itself is light
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: BACKEND_URL       # private network address of the API; the site proxies /api/* to it
+        fromService:
+          type: web
+          name: applypilot-api
+          property: hostport
